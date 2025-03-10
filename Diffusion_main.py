@@ -55,7 +55,7 @@ def model_train(config, train_loader):
             pairs_mode = train_loader.dataset.return_pairs
 
             if pairs_mode:
-                x, pos_x, neg_x, true_rul, _, _ = data
+                x, pos_x, neg_x, true_rul = data
             else:
                 x, true_rul = data
 
