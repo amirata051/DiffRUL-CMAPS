@@ -7,7 +7,7 @@ class Encoder(nn.Module):
     def __init__(self, config):
         super(Encoder, self).__init__()
         self.input_size = config['input_size']
-        self.hidden_size = config['hidden_size']
+        self.hidden_size = config['hidden_size'] 
         self.latent_dim = config['latent_dim']
         self.num_layers = config['num_layers']
         self.bidirectional = config['bidirectional']
@@ -52,9 +52,19 @@ class Encoder(nn.Module):
             log_var: [B, 2]
         """
         print(f"Encoder input x shape: {x.shape}, has_nan: {torch.isnan(x).any()}")
+        if len(x.shape) == 2:
+            x = x.unsqueeze(0)  # Add batch dimension if missing
+            print(f"Encoder input x reshaped: {x.shape}")
+
         batch_size = x.shape[0]
         _, (h_n, _) = self.lstm(x)
         print(f"Encoder LSTM output h_n shape: {h_n.shape}")
+        print('---------------------------------------------------------------')
+        print(f'lstm : {self.lstm(x)}')
+        print('---------------------------------------------------------------')
+        print('---------------------------------------------------------------')
+        print(f'h_n : {h_n}')
+        print('---------------------------------------------------------------')
 
         h_n = h_n.view(self.num_layers, self.num_directions, batch_size, self.hidden_size)
         if self.bidirectional:

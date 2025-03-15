@@ -15,7 +15,7 @@ config = {
     "dropout_regressor": 0.1,  # Dropout rate for regressor
     "reconstruct": True,  # Whether to enable reconstruction in the model
     "lr": 0.001,  # Learning rate
-    "max_epochs": 50,  # Maximum number of training epochs
+    "max_epochs": 5,  # Maximum number of training epochs
     "batch_size": 32,  # Batch size for training
     "output_dir": "./output",  # Directory to save output files
     "vae_model_path": "./output/best_vae_model.pt",  # Path to save the best VAE model

@@ -137,7 +137,7 @@ class PreprocessedDataset(Dataset):
 
     def get_run(self, engine_id):
         # Retrieve data and RUL for a specific engine
-        idx = self.ids.index(f"sample_{engine_id}")
+        idx = self.ids.index(engine_id)
         return self.data[idx], self.ruls[idx]
 
 if __name__ == "__main__":

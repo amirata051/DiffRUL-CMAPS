@@ -61,7 +61,7 @@ def model_train(config, train_loader):
 
             x = x.to(device)
             with torch.no_grad():
-                predicted_rul, z, _, _, _ = model_vae(x)
+                predicted_rul, z = model_vae(x)[:2]
                 conditioner = z.to(device)
 
             time = diffusion.sample_time_steps(x.shape[0]).to(device)
@@ -111,14 +111,15 @@ def model_test(config, train_loader, best_diff_model_path, output_path):
     sample_result = {}
     engine_ids = train_loader.dataset.ids
     for engine_id in tqdm(engine_ids, desc='Sample'):
-        engine_id = int(engine_id)
 
         with torch.no_grad():
             x, y = train_loader.dataset.get_run(engine_id)
-            x = x.to(device)  # [B, seq_len, fea_dim]
-            y = y.to(device)  # [B, 1]
+            x = torch.tensor(x).to(device)  # [B, seq_len, fea_dim]
+            y = torch.tensor(y).to(device) # [B, 1]
 
-            predicted_rul, z, _, _, _ = model_vae(x)
+            x = torch.tensor(x, dtype=torch.float32)
+
+            predicted_rul, z = model_vae(x)[:2]
             sample_x = diffusion.sample(config, model_diff, z)  # [B, L, feature_dim]
 
         x = x.detach().cpu().numpy()
