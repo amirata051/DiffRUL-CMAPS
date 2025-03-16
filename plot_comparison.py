@@ -41,9 +41,13 @@ def plot_comparison():
     real_data_normalized = real_data_normalized[:min_len]
     sample_x = sample_x[:min_len]
 
+    # Debug: Print data stats
+    print(f"Real data shape: {real_data_normalized.shape}, min: {real_data_normalized.min()}, max: {real_data_normalized.max()}")
+    print(f"Sampled data shape: {sample_x.shape}, min: {sample_x.min()}, max: {sample_x.max()}")
+
     # Plot
     sensor_names = ["T24", "T30", "P30", "Nf", "Nc", "Ps30", "phi", "NRf", "NRc", "BPR", "htBleed", "W31", "W32", "W32"]
-    cycles = np.linspace(0, min_len - 1, min_len)  # Create a range based on the minimum length
+    cycles = unit_1["cycle"].values[:min_len]  # Use actual cycle values
     
     for i, sensor in enumerate(sensors):
         plt.figure(figsize=(10, 5))
