@@ -54,7 +54,6 @@ class DiffusionEmbedding(nn.Module):
         self.register_buffer('embedding', self._build_embedding(max_steps), persistent=False)
         self.projection1 = nn.Linear(128, 512)
         self.projection2 = nn.Linear(512, 512)
-git 
     def forward(self, diffusion_step):
         if diffusion_step.dtype in [torch.int32, torch.int64]:
             x = self.embedding[diffusion_step]
