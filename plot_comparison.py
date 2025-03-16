@@ -25,8 +25,9 @@ def plot_comparison():
 
     # Load augmented data
     augmented_data = load_from_pickle(os.path.join(config['output_dir'], 'augmented_data.pkl'))
-    engine_id = "unit_1_window_0"  # Example engine
+    engine_id = list(augmented_data.keys())[0]  # Use the first available key
     x, sample_x = augmented_data[engine_id]
+    print(engine_id)
 
     # Match lengths
     min_len = min(len(real_data_normalized), len(sample_x))
