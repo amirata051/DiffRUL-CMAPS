@@ -94,7 +94,6 @@ def model_train(config, train_loader):
 
 
 def model_test(config, train_loader, best_diff_model_path, output_path):
-
     # load DTE Model
     model_vae = torch.load(config['vae_model_path'])
     model_vae.to(device)
@@ -111,19 +110,34 @@ def model_test(config, train_loader, best_diff_model_path, output_path):
     sample_result = {}
     engine_ids = train_loader.dataset.ids
     for engine_id in tqdm(engine_ids, desc='Sample'):
-
         with torch.no_grad():
             x, y = train_loader.dataset.get_run(engine_id)
             x = torch.tensor(x).to(device)  # [B, seq_len, fea_dim]
-            y = torch.tensor(y).to(device) # [B, 1]
-
+            y = torch.tensor(y).to(device)  # [B, 1]
             x = torch.tensor(x, dtype=torch.float32)
 
             predicted_rul, z = model_vae(x)[:2]
-            sample_x = diffusion.sample(config, model_diff, z)  # [B, L, feature_dim]
+            
+            # Initialize list to store sampled data for the full run
+            full_sample_x = []
+            
+            # Number of windows for this engine (approximation)
+            engine_data = train_loader.dataset.data[train_loader.dataset.ids.index(engine_id)]
+            num_windows = len(engine_data) // config['window_size']
+            
+            # Generate samples for each window
+            for _ in range(num_windows):
+                sample_x_window = diffusion.sample(config, model_diff, z)
+                full_sample_x.append(sample_x_window[:, -1, :])  # Take last timestep of each window
+            
+            # Concatenate the last timesteps to form the full run
+            full_sample_x = torch.cat(full_sample_x, dim=0)
+            
+            # Ensure the length matches the real data
+            full_sample_x = full_sample_x[:len(x)]
 
         x = x.detach().cpu().numpy()
-        sample_x = sample_x.detach().cpu().numpy()
-        sample_result[engine_id] = (x, sample_x)
+        full_sample_x = full_sample_x.detach().cpu().numpy()
+        sample_result[engine_id] = (x, full_sample_x)
 
     utils.save_to_pickle(output_path, sample_result)
