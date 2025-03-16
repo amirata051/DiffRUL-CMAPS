@@ -67,6 +67,9 @@ class CMAPSDataset(Dataset):
         self.data = np.array(self.data)
         self.ruls = np.array(self.ruls)
 
+        # Add RUL clipping
+        self.ruls = np.minimum(self.ruls, 130)
+
         # Save preprocessed data
         preprocessed_dir = os.path.join('output', 'preprocessed')
         os.makedirs(preprocessed_dir, exist_ok=True)
@@ -107,6 +110,10 @@ class PreprocessedDataset(Dataset):
         # Initialize with preprocessed data paths
         self.data = np.load(preprocessed_data_path)
         self.ruls = np.load(preprocessed_ruls_path)
+
+        # Add RUL clipping
+        self.ruls = np.minimum(self.ruls, 130)
+        
         self.window_size = window_size
         self.return_pairs = return_pairs
         self.ids = [f"sample_{i}" for i in range(len(self.data))]
