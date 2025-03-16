@@ -11,7 +11,7 @@ def compare_data(real, sampled):
     mean_diff = np.mean(np.abs(real - sampled))
     var_real = np.var(real)
     var_sampled = np.var(sampled)
-    var_ratio = var_sampled / (var_real + 1e-10)  # Add small epsilon to avoid division by zero
+    var_ratio = var_sampled / (var_real + 1e-10)
     print(f"MSE: {mse:.4f}, Mean Diff: {mean_diff:.4f}, Var Ratio: {var_ratio:.4f}")
 
 def plot_comparison():
@@ -19,6 +19,11 @@ def plot_comparison():
     df = pd.read_csv(os.path.join(config['data_dir'], "train_FD001.txt"), delim_whitespace=True, header=None)
     df.columns = ["unit", "cycle"] + [f"op_setting_{i}" for i in range(1, 4)] + [f"sensor_{i}" for i in range(1, 22)]
     unit_1 = df[df["unit"] == 1]
+    print(f"Number of cycles in unit_1: {len(unit_1)}")
+    if len(unit_1) < 2:
+        print("Unit_1 has too few cycles, trying Unit_2...")
+        unit_1 = df[df["unit"] == 2]
+        print(f"Number of cycles in unit_2: {len(unit_1)}")
     sensors = ["sensor_2", "sensor_3", "sensor_4", "sensor_7", "sensor_8", "sensor_9",
                "sensor_11", "sensor_12", "sensor_13", "sensor_14", "sensor_15",
                "sensor_17", "sensor_20", "sensor_21"]
@@ -27,7 +32,8 @@ def plot_comparison():
 
     # Load augmented data
     augmented_data = load_from_pickle(os.path.join(config['output_dir'], 'augmented_data.pkl'))
-    engine_id = list(augmented_data.keys())[0]  # Use the first available key
+    engine_id = list(augmented_data.keys())[0]  # Use the first available key for now
+    print(f"Selected engine_id: {engine_id}")
     x, sample_x = augmented_data[engine_id]
 
     # Check and normalize data
@@ -47,7 +53,7 @@ def plot_comparison():
 
     # Plot
     sensor_names = ["T24", "T30", "P30", "Nf", "Nc", "Ps30", "phi", "NRf", "NRc", "BPR", "htBleed", "W31", "W32", "W32"]
-    cycles = unit_1["cycle"].values[:min_len]  # Use actual cycle values
+    cycles = unit_1["cycle"].values[:min_len]
     
     for i, sensor in enumerate(sensors):
         plt.figure(figsize=(10, 5))
