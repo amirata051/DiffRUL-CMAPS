@@ -30,6 +30,9 @@ def model_train(config, train_loader, valid_loader):
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'])
     criterion = TotalLoss(config)
 
+    # Add learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=config['lr_scheduler']['step_size'], gamma=config['lr_scheduler']['gamma'])
+
     # Start training
     best_epoch = 0
     best_rmse = float('inf')
@@ -44,6 +47,9 @@ def model_train(config, train_loader, valid_loader):
         
         # Get valid score
         valid_score, valid_rmse = get_dataset_score(config, model, valid_loader, history)
+
+        # Step the scheduler
+        scheduler.step()
 
         # Save the epoch with the best validation loss
         if valid_rmse < best_rmse:
