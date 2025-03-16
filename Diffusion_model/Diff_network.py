@@ -52,8 +52,8 @@ class DiffusionEmbedding(nn.Module):
     def __init__(self, max_steps):
         super().__init__()
         self.register_buffer('embedding', self._build_embedding(max_steps), persistent=False)
-        self.projection1 = nn.Linear(128, 512)
-        self.projection2 = nn.Linear(512, 512)
+        self.projection1 = nn.Linear(128, 128)  # Change from 512 to 128
+        self.projection2 = nn.Linear(128, 128)  # Change from 512 to 128
 
     def forward(self, diffusion_step):
         if diffusion_step.dtype in [torch.int32, torch.int64]:
@@ -79,7 +79,6 @@ class DiffusionEmbedding(nn.Module):
         table = steps * 10.0**(dims * 4.0 / 63.0)     # [T,64]
         table = torch.cat([torch.sin(table), torch.cos(table)], dim=1)
         return table
-
 
 class ResidualBlock(nn.Module):
     def __init__(self, seq_len, residual_channels, dilation):
