@@ -9,7 +9,9 @@ from utils.utils import load_from_pickle
 def compare_data(real, sampled):
     mse = np.mean((real - sampled) ** 2)
     mean_diff = np.mean(np.abs(real - sampled))
-    var_ratio = np.var(sampled) / np.var(real)
+    var_real = np.var(real)
+    var_sampled = np.var(sampled)
+    var_ratio = var_sampled / (var_real + 1e-10)  # Add small epsilon to avoid division by zero
     print(f"MSE: {mse:.4f}, Mean Diff: {mean_diff:.4f}, Var Ratio: {var_ratio:.4f}")
 
 def plot_comparison():
@@ -27,7 +29,12 @@ def plot_comparison():
     augmented_data = load_from_pickle(os.path.join(config['output_dir'], 'augmented_data.pkl'))
     engine_id = list(augmented_data.keys())[0]  # Use the first available key
     x, sample_x = augmented_data[engine_id]
-    print(engine_id)
+
+    # Check and normalize data
+    if len(sample_x) == 0 or not np.any(sample_x):
+        raise ValueError(f"Sampled data for {engine_id} is empty or all zeros!")
+    if len(real_data_normalized) == 0 or not np.any(real_data_normalized):
+        raise ValueError("Real data is empty or all zeros!")
 
     # Match lengths
     min_len = min(len(real_data_normalized), len(sample_x))
@@ -36,7 +43,7 @@ def plot_comparison():
 
     # Plot
     sensor_names = ["T24", "T30", "P30", "Nf", "Nc", "Ps30", "phi", "NRf", "NRc", "BPR", "htBleed", "W31", "W32", "W32"]
-    cycles = unit_1["cycle"].values[:min_len]
+    cycles = np.linspace(0, min_len - 1, min_len)  # Create a range based on the minimum length
     
     for i, sensor in enumerate(sensors):
         plt.figure(figsize=(10, 5))
