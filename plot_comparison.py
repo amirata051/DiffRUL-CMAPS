@@ -1,4 +1,4 @@
-# plot_comparison.py
+# plot_comparison
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -34,25 +34,13 @@ def plot_comparison():
     # Load augmented data
     augmented_data = load_from_pickle(os.path.join(config['output_dir'], 'augmented_data.pkl'))
 
-    # Collect all windows for unit_1 (assuming sample_0 to sample_6 correspond to unit_1)
-    num_windows = (len(unit_1) + config['window_size'] - 1) // config['window_size']  # Ceiling division
-    print(f"Expected number of windows for unit_1: {num_windows}")
-    unit_1_samples = []
-    unit_1_real = []
-    for i in range(num_windows):
-        key = f"sample_{i}"
-        if key not in augmented_data:
-            print(f"Key {key} not found in augmented_data. Available keys: {list(augmented_data.keys())}")
-            break
-        x, sample_x = augmented_data[key]
-        unit_1_real.append(x)
-        unit_1_samples.append(sample_x)
-
-    # Concatenate all windows
-    if not unit_1_samples:
-        raise ValueError("No samples found for unit_1 in augmented data!")
-    unit_1_real = torch.cat(unit_1_real, dim=0).numpy()  # Shape: [total_cycles, 14]
-    unit_1_samples = torch.cat(unit_1_samples, dim=0).numpy()  # Shape: [total_cycles, 14]
+    # Get data for unit_1
+    unit_id = "unit_1"
+    if unit_id not in augmented_data:
+        raise ValueError(f"Unit {unit_id} not found in augmented data! Available keys: {list(augmented_data.keys())}")
+    x, unit_1_samples = augmented_data[unit_id]
+    unit_1_samples = unit_1_samples.numpy() if hasattr(unit_1_samples, 'numpy') else unit_1_samples
+    x = x.numpy() if hasattr(x, 'numpy') else x
 
     # Match lengths
     min_len = min(len(real_data_normalized), len(unit_1_samples))
@@ -64,20 +52,36 @@ def plot_comparison():
     print(f"Sampled data shape: {unit_1_samples.shape}, min: {unit_1_samples.min()}, max: {unit_1_samples.max()}")
 
     # Plot
-    sensor_names = ["T24", "T30", "P30", "Nf", "Nc", "Ps30", "phi", "NRf", "NRc", "BPR", "htBleed", "W31", "W32", "W32"]
+    sensor_names = ["T24", "T30", "T50", "P30", "Nf", "Nc", "Ps30", "phi", "NRf", "NRc", "BPR", "htBleed", "W31", "W32"]
     cycles = unit_1["cycle"].values[:min_len]
-    
+
+    # Create a figure with subplots (7x2 grid to accommodate all 14 sensors)
+    fig, axes = plt.subplots(7, 2, figsize=(12, 20), sharex=True, sharey=True)
+    axes = axes.flatten()
+
+    # Plot all 14 sensors
+    for idx, sensor_idx in enumerate(range(len(sensors))):
+        ax = axes[idx]
+        ax.plot(cycles, real_data_normalized[:, sensor_idx], label="Real Data", color="blue")
+        ax.plot(cycles, unit_1_samples[:, sensor_idx], label="Sampled Data", color="orange")
+        ax.set_title(sensor_names[sensor_idx], fontsize=12, pad=10)
+        ax.grid(True)
+        if idx % 2 == 0:  # Left column
+            ax.set_ylabel("Value", fontsize=10)
+        if idx >= 12:  # Bottom row
+            ax.set_xlabel("Cycle", fontsize=10)
+            ax.set_xticks(np.arange(0, max(cycles) + 1, 50))  # Add cycle numbers on x-axis
+
+    # Add a legend to the last subplot
+    axes[-1].legend(loc="upper right", fontsize=10)
+
+    # Adjust layout to prevent overlap
+    plt.tight_layout()
+    plt.savefig("figure_7x2.png", dpi=300)
+    plt.close()
+
+    # Print comparison metrics for each sensor
     for i, sensor in enumerate(sensors):
-        plt.figure(figsize=(10, 5))
-        plt.plot(cycles, real_data_normalized[:, i], label="Real Data", color="blue")
-        plt.plot(cycles, unit_1_samples[:, i], label="Sampled Data", color="orange")
-        plt.xlabel("Cycle")
-        plt.ylabel(sensor_names[i])
-        plt.title(f"Degradation Trajectory of {sensor_names[i]}")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(f"plot_{sensor_names[i]}.png")
-        plt.close()
         compare_data(real_data_normalized[:, i], unit_1_samples[:, i])
 
 if __name__ == "__main__":

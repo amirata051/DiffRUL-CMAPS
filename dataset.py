@@ -12,9 +12,11 @@ class CMAPSDataset(Dataset):
         self.mode = mode  # "train" or "test" mode
         self.window_size = window_size  # Size of the sliding window
         self.return_pairs = return_pairs  # Whether to return positive/negative pairs
-        self.data = []  # List to store processed data
+        self.data = []  # List to store processed data (windows)
         self.ruls = []  # List to store Remaining Useful Life (RUL) values
         self.ids = []  # List to store sample IDs
+        self.full_runs = {}  # Dictionary to store full runs for each unit
+        self.full_ruls = {}  # Dictionary to store full RULs for each unit
 
         # Determine file paths based on mode
         if self.mode == "train":
@@ -55,6 +57,13 @@ class CMAPSDataset(Dataset):
                 unit_rul = rul_values[unit - 1]
                 unit_ruls = unit_rul + (cycles.max() - cycles)
 
+            # Clip RUL
+            unit_ruls = np.minimum(unit_ruls, 130)
+
+            # Store the full run for this unit
+            self.full_runs[f"unit_{unit}"] = unit_data
+            self.full_ruls[f"unit_{unit}"] = unit_ruls
+
             # Create sliding windows
             for i in range(0, len(unit_data) - window_size + 1, window_size):
                 window = unit_data[i:i + window_size]
@@ -67,21 +76,23 @@ class CMAPSDataset(Dataset):
         self.data = np.array(self.data)
         self.ruls = np.array(self.ruls)
 
-        # Add RUL clipping
-        self.ruls = np.minimum(self.ruls, 130)
-
         # Save preprocessed data
         preprocessed_dir = os.path.join('output', 'preprocessed')
         os.makedirs(preprocessed_dir, exist_ok=True)
         np.save(os.path.join(preprocessed_dir, f'preprocessed_data_{self.mode}.npy'), self.data)
         np.save(os.path.join(preprocessed_dir, f'preprocessed_ruls_{self.mode}.npy'), self.ruls)
+        # Save full runs and RULs
+        np.save(os.path.join(preprocessed_dir, f'full_runs_{self.mode}.npy'), self.full_runs)
+        np.save(os.path.join(preprocessed_dir, f'full_ruls_{self.mode}.npy'), self.full_ruls)
+
+        # Store the raw data for get_full_run (optional, can be removed if not needed)
+        self.raw_data = df
+        self.sensor_cols = sensor_cols
 
     def __len__(self):
-        # Return the total number of samples
         return len(self.data)
 
     def __getitem__(self, idx):
-        # Get a sample by index
         x = torch.FloatTensor(self.data[idx])
         y = torch.FloatTensor([self.ruls[idx]])
         if self.return_pairs:
@@ -92,7 +103,6 @@ class CMAPSDataset(Dataset):
         return x, y
 
     def _get_pairs(self, idx):
-        # Generate positive and negative pairs based on RUL similarity
         rul = self.ruls[idx]
         similar_ruls = np.where(np.abs(self.ruls - rul) <= 5)[0]
         dissimilar_ruls = np.where((np.abs(self.ruls - rul) > 5) & (np.abs(self.ruls - rul) <= 15))[0]
@@ -101,29 +111,41 @@ class CMAPSDataset(Dataset):
         return pos_idx, neg_idx
 
     def get_run(self, engine_id):
-        # Retrieve data and RUL for a specific engine
         idx = self.ids.index(f"unit_{engine_id}_window_0")
         return self.data[idx], self.ruls[idx]
 
+    def get_full_run(self, unit_id):
+        # Retrieve full run from stored data
+        unit_data = self.full_runs[f"unit_{unit_id}"]
+        unit_ruls = self.full_ruls[f"unit_{unit_id}"]
+        return torch.FloatTensor(unit_data), torch.FloatTensor(unit_ruls)
+
 class PreprocessedDataset(Dataset):
-    def __init__(self, preprocessed_data_path, preprocessed_ruls_path, window_size=30, return_pairs=False):
-        # Initialize with preprocessed data paths
+    def __init__(self, preprocessed_data_path, preprocessed_ruls_path, full_runs_path, full_ruls_path, window_size=30, return_pairs=False):
         self.data = np.load(preprocessed_data_path)
         self.ruls = np.load(preprocessed_ruls_path)
+        self.full_runs = np.load(full_runs_path, allow_pickle=True).item()
+        self.full_ruls = np.load(full_ruls_path, allow_pickle=True).item()
 
-        # Add RUL clipping
         self.ruls = np.minimum(self.ruls, 130)
         
         self.window_size = window_size
         self.return_pairs = return_pairs
-        self.ids = [f"sample_{i}" for i in range(len(self.data))]
+
+        # Update ids to match unit_{i} format
+        self.ids = []
+        for unit in self.full_runs.keys():
+            unit_data = self.full_runs[unit]
+            for i in range(0, len(unit_data) - window_size + 1, window_size):
+                window = unit_data[i:i + window_size]
+                if window.shape[0] != window_size:
+                    continue
+                self.ids.append(f"{unit}_window_{i}")
 
     def __len__(self):
-        # Return the total number of samples
         return len(self.data)
 
     def __getitem__(self, idx):
-        # Get a sample by index
         x = torch.FloatTensor(self.data[idx])
         y = torch.FloatTensor([self.ruls[idx]])
         if self.return_pairs:
@@ -134,7 +156,6 @@ class PreprocessedDataset(Dataset):
         return x, y
 
     def _get_pairs(self, idx):
-        # Generate positive and negative pairs based on RUL similarity
         rul = self.ruls[idx]
         similar_ruls = np.where(np.abs(self.ruls - rul) <= 5)[0]
         dissimilar_ruls = np.where((np.abs(self.ruls - rul) > 5) & (np.abs(self.ruls - rul) <= 15))[0]
@@ -143,12 +164,16 @@ class PreprocessedDataset(Dataset):
         return pos_idx, neg_idx
 
     def get_run(self, engine_id):
-        # Retrieve data and RUL for a specific engine
-        idx = self.ids.index(engine_id)
+        idx = self.ids.index(f"unit_{engine_id}_window_0")
         return self.data[idx], self.ruls[idx]
 
+    def get_full_run(self, unit_id):
+        # Retrieve full run from stored data
+        unit_data = self.full_runs[f"unit_{unit_id}"]
+        unit_ruls = self.full_ruls[f"unit_{unit_id}"]
+        return torch.FloatTensor(unit_data), torch.FloatTensor(unit_ruls)
+
 if __name__ == "__main__":
-    # Main block for testing the dataset
     from config import config
     dataset = CMAPSDataset(config['data_dir'], mode="train", window_size=config['window_size'], return_pairs=True)
     dataloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)

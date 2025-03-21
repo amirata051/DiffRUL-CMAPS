@@ -1,4 +1,3 @@
-# check_augmented_data.py
 import pickle
 import pandas as pd
 import numpy as np
@@ -15,21 +14,20 @@ unit_1 = df[df["unit"] == 1]
 sensors = ["sensor_2", "sensor_3", "sensor_4", "sensor_7", "sensor_8", "sensor_9",
            "sensor_11", "sensor_12", "sensor_13", "sensor_14", "sensor_15",
            "sensor_17", "sensor_20", "sensor_21"]
-real_data_unit_1 = unit_1[sensors].values[:30]  # First 30 cycles
+real_data_unit_1 = unit_1[sensors].values  # All cycles for unit_1
 # Normalize real_data_unit_1
 real_data_unit_1_normalized = (real_data_unit_1 - real_data_unit_1.min(axis=0)) / (real_data_unit_1.max(axis=0) - real_data_unit_1.min(axis=0) + 1e-10)
 
 # Print all keys and shapes
 print("Total number of keys:", len(augmented_data))
-unit_1_keys = []
-for key in augmented_data.keys():
-    x, sample_x = augmented_data[key]
-    x_numpy = x.numpy() if hasattr(x, 'numpy') else x
-    # Normalize x for comparison
-    x_normalized = (x_numpy - x_numpy.min(axis=0)) / (x_numpy.max(axis=0) - x_numpy.min(axis=0) + 1e-10)
-    if np.allclose(x_normalized[:30], real_data_unit_1_normalized, atol=1e-1):  # Relax tolerance
-        print(f"Key: {key}, Real data shape: {x.shape}, Sampled data shape: {sample_x.shape}, Matches unit_1!")
-        unit_1_keys.append(key)
-    else:
-        print(f"Key: {key}, Real data shape: {x.shape}, Sampled data shape: {sample_x.shape}")
-print(f"Keys matching unit_1: {unit_1_keys}")
+unit_1_key = 'unit_1'
+if unit_1_key in augmented_data:
+    x, sample_x = augmented_data[unit_1_key]
+    print(f"Key: {unit_1_key}, Real data shape: {x.shape}, Sampled data shape: {sample_x.shape}")
+    # Compare the first 30 cycles for verification
+    x_normalized = (x.numpy() if hasattr(x, 'numpy') else x)
+    x_normalized = (x_normalized - x_normalized.min(axis=0)) / (x_normalized.max(axis=0) - x_normalized.min(axis=0) + 1e-10)
+    if np.allclose(x_normalized[:30], real_data_unit_1_normalized[:30], atol=1e-1):
+        print(f"Key: {unit_1_key} matches unit_1!")
+else:
+    print(f"Key {unit_1_key} not found in augmented_data. Available keys: {list(augmented_data.keys())}")

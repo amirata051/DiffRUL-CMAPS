@@ -33,7 +33,16 @@ def main():
     # Load preprocessed data for diffusion
     train_data_path = os.path.join(config['output_dir'], 'preprocessed', 'preprocessed_data_train.npy')
     train_ruls_path = os.path.join(config['output_dir'], 'preprocessed', 'preprocessed_ruls_train.npy')
-    preprocessed_train_dataset = PreprocessedDataset(train_data_path, train_ruls_path, window_size=config['window_size'], return_pairs=True)
+    full_runs_path = os.path.join(config['output_dir'], 'preprocessed', 'full_runs_train.npy')
+    full_ruls_path = os.path.join(config['output_dir'], 'preprocessed', 'full_ruls_train.npy')
+    preprocessed_train_dataset = PreprocessedDataset(
+        train_data_path,
+        train_ruls_path,
+        full_runs_path,
+        full_ruls_path,
+        window_size=config['window_size'],
+        return_pairs=True
+    )
     preprocessed_train_loader = DataLoader(preprocessed_train_dataset, batch_size=config['batch_size'], shuffle=True)
 
     # Train diffusion model

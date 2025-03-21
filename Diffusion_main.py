@@ -1,8 +1,4 @@
-
-"""
-Diffision Model train
-"""
-
+# Diffusion_main.py
 import os
 import json
 import pickle
@@ -20,9 +16,7 @@ from Diffusion_model.ddpm import Diffusion as DDPMDiffusion
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 def model_train(config, train_loader):
-
     # load DTE Model
     model_vae = torch.load(config['vae_model_path'])
     model_vae.to(device)
@@ -49,7 +43,6 @@ def model_train(config, train_loader):
 
     epoch_loss = []
     for epoch in tqdm(range(config['max_epochs']), desc='Training'):
-
         batch_loss = []
         for batch_idx, data in enumerate(train_loader):
             pairs_mode = train_loader.dataset.return_pairs
@@ -92,13 +85,13 @@ def model_train(config, train_loader):
 
     return epoch_loss
 
-
 def model_test(config, train_loader, best_diff_model_path, output_path):
-    # load DTE Model
+    # Load DTE Model
     model_vae = torch.load(config['vae_model_path'])
     model_vae.to(device)
     model_vae.eval()
 
+    # Load diffusion model
     model_diff = DiffWave(config)
     checkpoint = utils.load_model(best_diff_model_path)
     model_diff.load_state_dict(checkpoint['state_dict'])
@@ -108,36 +101,49 @@ def model_test(config, train_loader, best_diff_model_path, output_path):
     diffusion = DDPMDiffusion(config['noise_steps'], config['beta_start'], config['beta_end'], config['schedule_name'], device)
 
     sample_result = {}
-    engine_ids = train_loader.dataset.ids
-    for engine_id in tqdm(engine_ids, desc='Sample'):
+    # Get unique unit IDs (e.g., unit_1, unit_2, ...)
+    unit_ids = sorted(set(id_.split('_window')[0] for id_ in train_loader.dataset.ids))
+    print(f"Unique unit IDs: {unit_ids}")
+
+    for unit_id in tqdm(unit_ids, desc='Sample'):
         with torch.no_grad():
-            x, y = train_loader.dataset.get_run(engine_id)
-            x = torch.tensor(x).to(device)  # [B, seq_len, fea_dim]
-            y = torch.tensor(y).to(device)  # [B, 1]
-            x = torch.tensor(x, dtype=torch.float32)
+            # Get full data for this unit
+            x, y = train_loader.dataset.get_full_run(unit_id.split('_')[1])
+            print(f"Full data shape for {unit_id}: {x.shape}")
 
-            predicted_rul, z = model_vae(x)[:2]
-            
-            # Initialize list to store sampled data for the full run
-            full_sample_x = []
-            
-            # Number of windows for this engine (approximation)
-            engine_data = train_loader.dataset.data[train_loader.dataset.ids.index(engine_id)]
-            num_windows = len(engine_data) // config['window_size']
-            
-            # Generate samples for each window
-            for _ in range(num_windows):
-                sample_x_window = diffusion.sample(config, model_diff, z)
-                full_sample_x.append(sample_x_window[:, -1, :])  # Take last timestep of each window
-            
-            # Concatenate the last timesteps to form the full run
-            full_sample_x = torch.cat(full_sample_x, dim=0)
-            
-            # Ensure the length matches the real data
-            full_sample_x = full_sample_x[:len(x)]
+            # Calculate the number of windows needed to match the exact number of cycles
+            total_cycles = x.shape[0]  # e.g., 192 for unit_1
+            chunk_size = config['window_size']  # 30
+            num_windows = (total_cycles + chunk_size - 1) // chunk_size  # Ceiling division to cover all cycles
+            print(f"Total cycles: {total_cycles}, Number of windows: {num_windows}")
 
-        x = x.detach().cpu().numpy()
-        full_sample_x = full_sample_x.detach().cpu().numpy()
-        sample_result[engine_id] = (x, full_sample_x)
+            full_sample_x_chunks = []
+            for i in range(0, total_cycles, chunk_size):
+                # Extract the chunk
+                chunk_x = x[i:i+chunk_size].to(device)
+                # Calculate the actual size of this chunk
+                actual_chunk_size = chunk_x.shape[0]  # Might be less than chunk_size for the last chunk
+                if actual_chunk_size < chunk_size:
+                    # Pad the last chunk if necessary
+                    padding = torch.zeros(chunk_size - actual_chunk_size, chunk_x.shape[1]).to(device)
+                    chunk_x = torch.cat([chunk_x, padding], dim=0)
+
+                # Get conditioner (latent representation) for this chunk
+                predicted_rul, z = model_vae(chunk_x.unsqueeze(0))[:2]  # Add batch dimension
+                conditioner = z.to(device)
+
+                # Generate samples for this chunk
+                sample_x = diffusion.sample(config, model_diff, conditioner)
+                # Remove batch dimension and take only the actual number of cycles
+                sample_x = sample_x.squeeze(0)[:actual_chunk_size]  # [actual_chunk_size, 14]
+                full_sample_x_chunks.append(sample_x.cpu())
+
+            # Concatenate all chunks
+            full_sample_x = torch.cat(full_sample_x_chunks, dim=0)
+            print(f"Sampled data shape for {unit_id}: {full_sample_x.shape}")
+
+            # Store the result
+            sample_result[unit_id] = (x.cpu(), full_sample_x.cpu())
 
     utils.save_to_pickle(output_path, sample_result)
+    print("Augmentation completed successfully!")
